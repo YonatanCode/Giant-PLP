@@ -3,68 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PLP Product Listing Card</title>
+    <title>Giant Product Card Row</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Overpass:wght@700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Overpass:wght@700;800&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page-shell">
-      <section
-        class="product-card"
-        aria-label="Product listing item"
-        data-node-id="725:27192"
-      >
-        <div class="card-badge card-badge--new">New</div>
-
-        <div class="award-badge" aria-hidden="true">
-          <img src="./badge.png" alt="" />
-        </div>
-
-        <div class="product-media">
-          <img
-            class="product-image"
-            src="./bike.png"
-            alt="A teal and silver aero road bike"
-          />
-        </div>
-
-        <div class="card-top-row">
-          <div class="swatches" aria-label="Available colors"></div>
-
-          <label class="compare-toggle">
-            <span>Compare</span>
-            <input type="checkbox" name="compare" />
-            <span class="checkbox-ui" aria-hidden="true"></span>
-          </label>
-        </div>
-
-        <div class="card-copy">
-          <div class="title-group">
-            <h1 class="product-title">Product name</h1>
-            <p class="product-description">
-              For sprints, breaks or solo moves, this aero road bike fuels the
-              need for speed.
-            </p>
-          </div>
-
-          <div class="pricing">
-            <div class="price-line">
-              <span class="sale-price">$X,XXX</span>
-              <span class="list-price">$X,XXX</span>
-            </div>
-            <p class="finance-copy">0% APR Finance</p>
-            <p class="disclaimer">
-              Lowest price in 30 days before the discount: $X,XXX -20%
-            </p>
-            <p class="disclaimer">Regular price: $X,XXX -36%</p>
-          </div>
-        </div>
-      </section>
+      <section class="card-row" id="card-row"></section>
     </main>
 
     <script src="./script.js"></script>
