@@ -156,6 +156,11 @@ const products = [
 
 const row = document.getElementById('card-row');
 const MAX_COMPARE_ITEMS = 3;
+const TOUCH_QUERY = '(hover: none), (pointer: coarse)';
+
+function isTouchInteractionMode() {
+  return window.matchMedia(TOUCH_QUERY).matches;
+}
 
 function createSwatch(color, selected, onSelect) {
   const button = document.createElement('button');
@@ -174,6 +179,8 @@ function createSwatch(color, selected, onSelect) {
     event.preventDefault();
     event.stopPropagation();
     onSelect(color.key);
+    button.blur();
+    document.activeElement?.blur?.();
   });
   return button;
 }
@@ -377,15 +384,7 @@ function positionCompareTooltip(toggle) {
   }
 
   toggle.style.setProperty('--tooltip-shift', '0px');
-  const allCards = Array.from(row.querySelectorAll('.product-card'));
-  const firstRowTop = Math.min(...allCards.map((entry) => Math.round(entry.getBoundingClientRect().top)));
-  const cardRect = card.getBoundingClientRect();
-  const isFirstRow = Math.abs(Math.round(cardRect.top) - firstRowTop) <= 2;
-  const rightmostInFirstRow = isFirstRow && allCards
-    .filter((entry) => Math.abs(Math.round(entry.getBoundingClientRect().top) - firstRowTop) <= 2)
-    .at(-1) === card;
-
-  if (!rightmostInFirstRow) {
+  if (!card.classList.contains('product-card--edge-right')) {
     return;
   }
 
@@ -407,11 +406,28 @@ function positionCompareTooltip(toggle) {
 row.addEventListener('change', (event) => {
   if (event.target.matches('input[name="compare"]')) {
     updateCompareAvailability();
+
+    if (isTouchInteractionMode()) {
+      event.target.blur();
+      document.activeElement?.blur?.();
+    }
   }
 });
 
 row.addEventListener('click', (event) => {
+  const compareToggle = event.target.closest('.compare-toggle');
   const disabledToggle = event.target.closest('.compare-toggle.is-disabled');
+  const swatch = event.target.closest('.swatch');
+
+  if (swatch) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (compareToggle) {
+    event.stopPropagation();
+  }
 
   if (!disabledToggle) {
     row.querySelectorAll('.compare-toggle.show-tooltip').forEach((toggle) => {
@@ -432,6 +448,12 @@ row.addEventListener('click', (event) => {
   disabledToggle.classList.add('show-tooltip');
   positionCompareTooltip(disabledToggle);
 });
+
+row.addEventListener('touchstart', (event) => {
+  if (event.target.closest('.compare-toggle.is-disabled')) {
+    event.preventDefault();
+  }
+}, { passive: false });
 
 row.addEventListener('mouseleave', (event) => {
   const toggle = event.target.closest('.compare-toggle.show-tooltip');
