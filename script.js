@@ -384,7 +384,7 @@ function positionCompareTooltip(toggle) {
   }
 
   toggle.style.setProperty('--tooltip-shift', '0px');
-  if (!card.classList.contains('product-card--edge-right')) {
+  if (!isTouchInteractionMode() && !card.classList.contains('product-card--edge-right')) {
     return;
   }
 
