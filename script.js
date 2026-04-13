@@ -3,7 +3,7 @@ const bikesProducts = [
     title: 'Talon 2',
     url: 'https://www.giant-bicycles.com/us/talon-2-2025',
     description:
-      'A versatile aluminum hardtail built for quick trail laps, everyday dirt rides, and confident off-road progression.',
+      'A light, capable hardtail built to keep climbing effort low while still feeling stable and responsive on everyday trails.',
     price: {
       mode: 'regular',
       amount: '$800'
@@ -47,7 +47,7 @@ const bikesProducts = [
     title: 'Anthem Advanced SL Frameset',
     url: 'https://www.giant-bicycles.com/us/anthem-advanced-sl-frameset',
     description:
-      'A race-focused carbon frameset made for lightweight XC builds with sharp handling and efficient suspension response.',
+      'An ultralight carbon frameset made for building a feathery XC race bike with sharp handling and efficient suspension feel.',
     price: {
       mode: 'regular',
       amount: '$4,500'
@@ -74,7 +74,7 @@ const bikesProducts = [
     title: 'Anthem X Advanced SL 1',
     url: 'https://www.giant-bicycles.com/us/anthem-x-advanced-sl-1',
     description:
-      'A premium XC machine tuned for explosive climbing, fast descents, and all-out speed on modern race courses.',
+      'A top-tier XC bike engineered to save weight for faster climbing, quicker acceleration, and race-day speed.',
     price: {
       mode: 'regular',
       amount: '$8,000'
@@ -104,7 +104,7 @@ const bikesProducts = [
     title: 'XTC Advanced 29 1',
     url: 'https://www.giant-bicycles.com/us/xtc-advanced-29-1',
     description:
-      'A lightweight 29er hardtail that blends direct power transfer, precise steering, and race-day-ready efficiency.',
+      'A lightweight 29er hardtail built to maximize power-to-weight efficiency with crisp steering and fast XC response.',
     price: {
       mode: 'discount',
       amount: '$3,200',
@@ -130,7 +130,7 @@ const bikesProducts = [
     title: 'Anthem X Advanced SL 2',
     url: 'https://www.giant-bicycles.com/us/anthem-x-advanced-sl-2',
     description:
-      'A fast, capable XC trail bike designed to balance climbing efficiency with extra confidence on rough singletrack.',
+      'A lightweight XC platform that trims climbing burden while keeping enough control and confidence for rough singletrack.',
     price: {
       mode: 'regular',
       amount: '$5,600'
@@ -637,6 +637,7 @@ function createCard(product) {
   article.className = 'product-card has-hover-media';
   article.setAttribute('aria-label', `${product.title} product tile`);
   const showCompare = activeCatalogKey === 'bikes';
+  const showDescription = activeCatalogKey === 'bikes';
 
   article.innerHTML = `
     <a class="product-card__link" href="${product.url}" aria-label="Open ${product.title} product page"></a>
@@ -669,7 +670,7 @@ function createCard(product) {
       <a class="product-card__text-link" href="${product.url}" aria-label="Read more about ${product.title}">
         <div class="title-group">
           <h2 class="product-title">${product.title}</h2>
-          <p class="product-description">${product.description}</p>
+          ${showDescription ? `<p class="product-description">${product.description}</p>` : ''}
         </div>
       </a>
       <div class="product-card__pricing">
