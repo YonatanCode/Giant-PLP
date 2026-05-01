@@ -336,7 +336,7 @@ select {
   display: inline-flex;
   justify-content: center;
   line-height: 1;
-  width: 16px;
+  width: px;
 }
 
 .results-action__icon {
@@ -426,7 +426,7 @@ select {
 }
 
 .filter-group--open {
-  padding-top: var(--Spacing-General-M);
+  padding-top: var(--Spacing-General-None);
 }
 
 .filter-group__header {
@@ -452,13 +452,14 @@ select {
 .filter-group__body {
   display: flex;
   flex-direction: column;
-  gap: var(--Spacing-General-S);
-  padding: var(--Spacing-General-XS) 0 var(--Spacing-General-M);
+  gap: 0;
+  padding: 0 0 var(--Spacing-General-M);
 }
 
 .availability-details {
   display: grid;
   gap: var(--Spacing-General-S);
+  margin-top: var(--Spacing-General-XS);
 }
 
 .availability-details[hidden] {
@@ -1236,10 +1237,10 @@ select {
 
 .availability-stores-btn__icon {
   flex: 0 0 auto;
-  height: 16px;
+  height: 24px;
   max-width: none;
   object-fit: contain;
-  width: 16px;
+  width: 24px;
 }
 
 .availability-stores-btn__label {
@@ -1253,7 +1254,6 @@ select {
   cursor: pointer;
   display: flex;
   gap: var(--Spacing-General-XS);
-  min-height: 40px;
   padding: var(--Spacing-General-XS) 0;
   user-select: none;
 }
