@@ -173,13 +173,14 @@ const filtersToggleLabel = document.getElementById('filters-toggle-label');
 const availabilityToggle = document.getElementById('availability-toggle');
 const availabilityDetails = document.getElementById('availability-details');
 const locationInput = document.getElementById('location-input');
+const locationSuggestions = document.getElementById('location-suggestions');
 const availabilityHelper = document.getElementById('availability-helper');
 const distanceFilter = document.getElementById('distance-filter');
 const distanceRange = document.getElementById('distance-range');
 const distanceOutput = document.getElementById('distance-output');
 const sortSelect = document.getElementById('sort-select');
 
-const AVAILABILITY_DISTANCE_MIN = 0;
+const AVAILABILITY_DISTANCE_MIN = 1;
 const AVAILABILITY_DISTANCE_STEP = 1;
 const MAX_COMPARE_ITEMS = 3;
 const TOUCH_QUERY = '(hover: none), (pointer: coarse)';
@@ -589,6 +590,109 @@ availabilityToggle.addEventListener('change', () => {
   renderCatalog();
 });
 
+// ─── Location suggestions ──────────────────────────────────────────────────
+
+const LOCATION_CITY_SUGGESTIONS = [
+  'New York, NY', 'Brooklyn, NY', 'Queens, NY', 'Bronx, NY', 'Staten Island, NY',
+  'Jersey City, NJ', 'Hoboken, NJ', 'Newark, NJ', 'Bayonne, NJ', 'Weehawken, NJ',
+  'Los Angeles, CA', 'San Francisco, CA', 'San Diego, CA', 'Sacramento, CA', 'San Jose, CA',
+  'Chicago, IL', 'Houston, TX', 'Phoenix, AZ', 'Philadelphia, PA', 'San Antonio, TX',
+  'Dallas, TX', 'Austin, TX', 'Jacksonville, FL', 'Fort Worth, TX', 'Columbus, OH',
+  'Charlotte, NC', 'Indianapolis, IN', 'Seattle, WA', 'Denver, CO', 'Nashville, TN',
+  'Las Vegas, NV', 'Portland, OR', 'Baltimore, MD', 'Milwaukee, WI', 'Atlanta, GA',
+  'Kansas City, MO', 'Raleigh, NC', 'Minneapolis, MN', 'Tampa, FL', 'New Orleans, LA'
+];
+
+const LOCATION_ZIP_MAP = {
+  '10001': 'New York, NY', '10002': 'New York, NY', '10003': 'New York, NY',
+  '10004': 'New York, NY', '10005': 'New York, NY', '10006': 'New York, NY',
+  '10007': 'New York, NY', '10009': 'New York, NY', '10010': 'New York, NY',
+  '10011': 'New York, NY', '10012': 'New York, NY', '10013': 'New York, NY',
+  '10014': 'New York, NY', '10016': 'New York, NY', '10017': 'New York, NY',
+  '10018': 'New York, NY', '10019': 'New York, NY', '10021': 'New York, NY',
+  '10022': 'New York, NY', '10023': 'New York, NY', '10024': 'New York, NY',
+  '10025': 'New York, NY', '10026': 'New York, NY', '10027': 'New York, NY',
+  '10028': 'New York, NY', '10036': 'New York, NY',
+  '11201': 'Brooklyn, NY', '11202': 'Brooklyn, NY', '11203': 'Brooklyn, NY',
+  '11204': 'Brooklyn, NY', '11205': 'Brooklyn, NY', '11206': 'Brooklyn, NY',
+  '11207': 'Brooklyn, NY', '11208': 'Brooklyn, NY', '11209': 'Brooklyn, NY',
+  '07302': 'Jersey City, NJ', '07304': 'Jersey City, NJ', '07306': 'Jersey City, NJ',
+  '07307': 'Jersey City, NJ', '07310': 'Jersey City, NJ'
+};
+
+let activeSuggestionIndex = -1;
+
+function getMatchingSuggestions(query) {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+
+  if (/^\d/.test(q)) {
+    const cities = [...new Set(
+      Object.entries(LOCATION_ZIP_MAP)
+        .filter(([zip]) => zip.startsWith(q))
+        .map(([, city]) => city)
+    )];
+    return cities.slice(0, 6);
+  }
+
+  return LOCATION_CITY_SUGGESTIONS.filter((s) => s.toLowerCase().startsWith(q)).slice(0, 6);
+}
+
+function renderLocationSuggestions() {
+  const matches = getMatchingSuggestions(locationInput.value);
+  activeSuggestionIndex = -1;
+  locationInput.removeAttribute('aria-activedescendant');
+
+  if (!matches.length) {
+    locationSuggestions.hidden = true;
+    locationSuggestions.innerHTML = '';
+    return;
+  }
+
+  locationSuggestions.innerHTML = matches.map((suggestion, i) =>
+    `<li class="location-suggestions__item" role="option" id="location-suggestion-${i}" aria-selected="false">${suggestion}</li>`
+  ).join('');
+
+  locationSuggestions.querySelectorAll('.location-suggestions__item').forEach((item) => {
+    item.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      selectLocationSuggestion(item.textContent);
+    });
+  });
+
+  locationSuggestions.hidden = false;
+}
+
+function selectLocationSuggestion(value) {
+  locationInput.value = value;
+  locationSuggestions.hidden = true;
+  locationSuggestions.innerHTML = '';
+  activeSuggestionIndex = -1;
+  locationInput.removeAttribute('aria-activedescendant');
+
+  const locationWasEntered = hasAvailabilityLocation();
+  state.locationQuery = locationInput.value;
+  if (!locationWasEntered && hasAvailabilityLocation()) {
+    initializeAvailabilityDistance();
+  }
+  syncFilterUi();
+  renderCatalog();
+}
+
+function updateActiveSuggestion(index) {
+  const items = locationSuggestions.querySelectorAll('.location-suggestions__item');
+  items.forEach((item, i) => {
+    item.classList.toggle('location-suggestions__item--active', i === index);
+    item.setAttribute('aria-selected', String(i === index));
+  });
+
+  if (index >= 0 && items[index]) {
+    locationInput.setAttribute('aria-activedescendant', `location-suggestion-${index}`);
+  } else {
+    locationInput.removeAttribute('aria-activedescendant');
+  }
+}
+
 locationInput.addEventListener('input', () => {
   const locationWasEntered = hasAvailabilityLocation();
   state.locationQuery = locationInput.value;
@@ -597,14 +701,73 @@ locationInput.addEventListener('input', () => {
     initializeAvailabilityDistance();
   }
 
+  renderLocationSuggestions();
   syncFilterUi();
   renderCatalog();
+});
+
+locationInput.addEventListener('keydown', (event) => {
+  if (locationSuggestions.hidden) return;
+
+  const items = locationSuggestions.querySelectorAll('.location-suggestions__item');
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
+    updateActiveSuggestion(activeSuggestionIndex);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, -1);
+    updateActiveSuggestion(activeSuggestionIndex);
+  } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+    event.preventDefault();
+    selectLocationSuggestion(items[activeSuggestionIndex].textContent);
+  } else if (event.key === 'Escape') {
+    locationSuggestions.hidden = true;
+    locationSuggestions.innerHTML = '';
+    activeSuggestionIndex = -1;
+  }
+});
+
+locationInput.addEventListener('blur', () => {
+  setTimeout(() => {
+    locationSuggestions.hidden = true;
+    locationSuggestions.innerHTML = '';
+    activeSuggestionIndex = -1;
+  }, 150);
 });
 
 distanceRange.addEventListener('input', () => {
   state.maxDistance = Number(distanceRange.value);
   syncFilterUi();
   renderCatalog();
+});
+
+let rangeDragging = false;
+let rangeLastX = 0;
+
+distanceRange.addEventListener('pointerdown', (event) => {
+  rangeDragging = true;
+  rangeLastX = event.clientX;
+});
+
+document.addEventListener('mousemove', (event) => {
+  if (rangeDragging) rangeLastX = event.clientX;
+});
+
+document.addEventListener('pointerup', () => {
+  if (!rangeDragging) return;
+  rangeDragging = false;
+
+  const rect = distanceRange.getBoundingClientRect();
+
+  if (rangeLastX < rect.left) {
+    distanceRange.value = distanceRange.min;
+    distanceRange.dispatchEvent(new Event('input'));
+  } else if (rangeLastX > rect.right) {
+    distanceRange.value = distanceRange.max;
+    distanceRange.dispatchEvent(new Event('input'));
+  }
 });
 
 sortSelect.addEventListener('change', () => {
@@ -764,6 +927,7 @@ const storeModalApply = document.getElementById('store-modal-apply');
 const openStoreModalBtn = document.getElementById('open-store-modal');
 const storePills = document.getElementById('store-pills');
 const storesLabel = document.querySelector('.availability-stores-btn__label');
+const filterAvailablePickup = document.getElementById('filter-available-pickup');
 
 let selectedStoreIds = new Set();
 let pendingStoreIds = new Set();
@@ -771,12 +935,14 @@ let pendingStoreIds = new Set();
 function openStoreModal() {
   pendingStoreIds = new Set(selectedStoreIds);
   storeModalOverlay.hidden = false;
+  document.body.style.overflow = 'hidden';
   storeModalLocation.focus();
   renderModalList();
 }
 
 function closeStoreModal() {
   storeModalOverlay.hidden = true;
+  document.body.style.overflow = '';
 }
 
 function renderModalList() {
@@ -805,6 +971,9 @@ function renderModalList() {
 
 function applyStoreSelection() {
   selectedStoreIds = new Set(pendingStoreIds);
+  if (selectedStoreIds.size > 0 && filterAvailablePickup) {
+    filterAvailablePickup.checked = true;
+  }
   renderStorePills();
   updateStoresLabel();
   closeStoreModal();
@@ -848,4 +1017,45 @@ storeModalOverlay.addEventListener('click', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !storeModalOverlay.hidden) closeStoreModal();
+  if (event.key === 'Escape' && !storesRangeOverlay.hidden) closeStoresRangeModal();
+});
+
+// ─── Stores in range modal ────────────────────────────────────────────────
+
+const storesRangeOverlay = document.getElementById('stores-range-overlay');
+const storesRangeClose = document.getElementById('stores-range-close');
+const storesRangeTitle = document.getElementById('stores-range-title');
+const storesRangeList = document.getElementById('stores-range-list');
+const showStoresInRangeBtn = document.getElementById('show-stores-in-range');
+
+function parseStoreDistance(distanceStr) {
+  return parseFloat(distanceStr);
+}
+
+function openStoresRangeModal() {
+  const withinRange = STORES.filter((store) => parseStoreDistance(store.distance) <= state.maxDistance);
+  const unit = state.maxDistance === 1 ? 'mile' : 'miles';
+  storesRangeTitle.textContent = `Stores within ${state.maxDistance} ${unit}`;
+  storesRangeList.innerHTML = withinRange.length
+    ? withinRange.map((store) => `
+        <div class="stores-range__item">
+          <span class="stores-range__item-name">${store.name}</span>
+          <span class="stores-range__item-distance">${store.distance}</span>
+        </div>
+      `).join('')
+    : `<p style="color: var(--Contrast-Variant); font-size: var(--Font-Size-Body-S);">No stores found within this range.</p>`;
+  storesRangeOverlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+  storesRangeClose.focus();
+}
+
+function closeStoresRangeModal() {
+  storesRangeOverlay.hidden = true;
+  document.body.style.overflow = '';
+}
+
+showStoresInRangeBtn.addEventListener('click', openStoresRangeModal);
+storesRangeClose.addEventListener('click', closeStoresRangeModal);
+storesRangeOverlay.addEventListener('click', (event) => {
+  if (event.target === storesRangeOverlay) closeStoresRangeModal();
 });

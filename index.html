@@ -98,19 +98,22 @@
               </label>
 
               <div class="availability-details" id="availability-details" hidden>
-                <label class="location-field">
-                  <span class="sr-only">Enter location</span>
-                  <input id="location-input" type="text" placeholder="Enter location" autocomplete="postal-code" />
-                  <span class="location-field__actions" aria-hidden="true">
-                    <span class="location-field__icon">
-                      <img class="location-field__asset location-field__asset--location" src="./location-icon.svg" alt="" />
+                <div class="location-field-wrap">
+                  <label class="location-field">
+                    <span class="sr-only">Enter location</span>
+                    <input id="location-input" type="text" placeholder="Enter location" autocomplete="off" aria-autocomplete="list" aria-controls="location-suggestions" aria-haspopup="listbox" />
+                    <span class="location-field__actions" aria-hidden="true">
+                      <span class="location-field__icon">
+                        <img class="location-field__asset location-field__asset--location" src="./location-icon.svg" alt="" />
+                      </span>
+                      <span class="location-field__divider"></span>
+                      <span class="location-field__icon">
+                        <img class="location-field__asset location-field__asset--search" src="./search-small-icon.svg" alt="" />
+                      </span>
                     </span>
-                    <span class="location-field__divider"></span>
-                    <span class="location-field__icon">
-                      <img class="location-field__asset location-field__asset--search" src="./search-small-icon.svg" alt="" />
-                    </span>
-                  </span>
-                </label>
+                  </label>
+                  <ul class="location-suggestions" id="location-suggestions" role="listbox" aria-label="Location suggestions" hidden></ul>
+                </div>
 
                 <p class="availability-helper" id="availability-helper" role="status" hidden>
                   Enter ZIP code or city to see nearby availability.
@@ -122,6 +125,7 @@
                     <output class="distance-filter__value" id="distance-output" for="distance-range">100 miles away</output>
                   </div>
                   <input id="distance-range" type="range" min="10" max="100" step="5" value="100" />
+                  <button class="distance-filter__stores-link" id="show-stores-in-range" type="button">Show stores in range</button>
                 </div>
               </div>
             </div>
@@ -224,6 +228,10 @@
 
         <section class="products-area" aria-label="Products">
           <div class="products-grid" id="products-grid"></div>
+          <div class="empty-state" id="empty-state" hidden>
+            <h2>No results found</h2>
+            <p>Try adjusting your filters to find what you're looking for.</p>
+          </div>
         </section>
       </section>
     </main>
@@ -244,6 +252,19 @@
         </div>
       </div>
     </footer>
+
+    <!-- Stores in range modal -->
+    <div class="modal-overlay" id="stores-range-overlay" role="dialog" aria-modal="true" aria-labelledby="stores-range-title" hidden>
+      <div class="store-modal">
+        <button class="store-modal__close" id="stores-range-close" type="button" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <h2 class="store-modal__title" id="stores-range-title">Stores in range</h2>
+        <div class="stores-range__list" id="stores-range-list"></div>
+      </div>
+    </div>
 
     <!-- Store selection modal -->
     <div class="modal-overlay" id="store-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="store-modal-title" hidden>

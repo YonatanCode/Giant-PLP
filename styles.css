@@ -569,6 +569,48 @@ select {
   width: 14px;
 }
 
+.location-field-wrap {
+  position: relative;
+}
+
+.location-suggestions {
+  background: var(--Surface, #fff);
+  border: 1.5px solid var(--Tint);
+  border-radius: var(--Border-Radius-S);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  left: 0;
+  list-style: none;
+  margin: 4px 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--Spacing-General-XS) 0;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 100;
+}
+
+.location-suggestions[hidden] {
+  display: none;
+}
+
+.location-suggestions__item {
+  color: var(--Contrast);
+  cursor: pointer;
+  font-size: var(--Font-Size-Body-S);
+  line-height: var(--Font-Line-Height-S);
+  padding: 10px var(--Spacing-General-SM);
+}
+
+.location-suggestions__item:hover,
+.location-suggestions__item--active {
+  background: var(--Tint-Light, #f5f5f5);
+}
+
+.location-suggestions__item--active {
+  outline: none;
+}
+
 .availability-helper {
   color: var(--Contrast-Variant);
   font-size: var(--Font-Size-Body-S);
@@ -669,6 +711,54 @@ select {
   --range-thumb-size: 24px;
 }
 
+.distance-filter__stores-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--Contrast);
+  cursor: pointer;
+  font-family: var(--Font-Family-Body);
+  font-size: var(--Font-Size-Body-S);
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.distance-filter__stores-link:hover {
+  color: var(--Contrast-Variant);
+}
+
+.stores-range__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.stores-range__item {
+  align-items: center;
+  border-bottom: 1px solid var(--Tint);
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.stores-range__item:last-child {
+  border-bottom: 0;
+}
+
+.stores-range__item-name {
+  font-size: var(--Font-Size-Body-M);
+  font-weight: var(--Font-Weight-SemiBold);
+  line-height: var(--Font-Line-Height-S);
+}
+
+.stores-range__item-distance {
+  color: var(--Contrast-Variant);
+  flex-shrink: 0;
+  font-size: var(--Font-Size-Body-S);
+  line-height: var(--Font-Line-Height-S);
+  margin-left: var(--Spacing-General-SM);
+}
+
 .products-area {
   min-width: 0;
 }
@@ -680,13 +770,17 @@ select {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.empty-state[hidden] {
+  display: none;
+}
+
 .empty-state {
   align-items: start;
   border: 1px solid var(--Tint);
   border-radius: var(--Border-Radius-S);
   display: grid;
   gap: var(--Spacing-General-XS);
-  margin-top: var(--Spacing-General-SM);
+  margin-top: 0;
   padding: 24px;
 }
 
