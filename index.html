@@ -51,7 +51,32 @@
     <main class="search-page">
       <section class="search-page__hero" aria-labelledby="results-title">
         <div class="results-heading">
-          <h1 class="results-title" id="results-title">Mountain bikes</h1>
+          <div class="results-title-group">
+            <nav class="breadcrumb" aria-label="Breadcrumb">
+              <ol class="breadcrumb__list">
+                <li class="breadcrumb__item">
+                  <a class="breadcrumb__link" href="/">Home</a>
+                </li>
+                <li class="breadcrumb__item">
+                  <span class="breadcrumb__separator" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M6.5 4.5L9.5 8L6.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <a class="breadcrumb__link" href="/">Bikes</a>
+                </li>
+                <li class="breadcrumb__item breadcrumb__item--current" aria-current="page">
+                  <span class="breadcrumb__separator" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M6.5 4.5L9.5 8L6.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  Mountain bikes
+                </li>
+              </ol>
+            </nav>
+            <h1 class="results-title" id="results-title">Mountain bikes</h1>
+          </div>
           <div class="results-toolbar" aria-label="Search results actions">
             <button class="results-action" id="filters-toggle" type="button" aria-pressed="true">
               <span id="filters-toggle-label">Hide filters</span>
@@ -70,19 +95,20 @@
         <div class="results-meta">
           <p class="results-count"><span id="results-count">0</span> products</p>
           <span class="results-meta__separator" aria-hidden="true">|</span>
-          <label class="sort-control" for="sort-select">
-            <span class="sort-control__label">Sort by:</span>
-            <span class="sort-control__select-wrap">
-              <select id="sort-select" aria-label="Sort products">
-                <option value="featured">Featured</option>
-                <option value="price-low">Price: low to high</option>
-                <option value="price-high">Price: high to low</option>
-              </select>
+          <div class="sort-control" id="sort-control">
+            <button class="sort-control__trigger" id="sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Sort products">
+              <span class="sort-control__label">Sort by:</span>
+              <span class="sort-control__value" id="sort-value">Featured</span>
               <span class="sort-control__icon" aria-hidden="true">
                 <img class="sort-control__asset" src="./chevron-down.svg" alt="" />
               </span>
-            </span>
-          </label>
+            </button>
+            <ul class="sort-dropdown" id="sort-dropdown" role="listbox" aria-label="Sort options" hidden>
+              <li class="sort-dropdown__item" role="option" data-value="featured" aria-selected="true">Featured</li>
+              <li class="sort-dropdown__item" role="option" data-value="price-low" aria-selected="false">Price: low to high</li>
+              <li class="sort-dropdown__item" role="option" data-value="price-high" aria-selected="false">Price: high to low</li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -137,7 +163,23 @@
             </div>
           </section>
 
-          <!-- Availability: store selector (new) -->
+          <section class="availability-store-filter" aria-labelledby="availability-store-prefix">
+            <div class="availability-store-filter__content">
+              <p class="availability-store-filter__text">
+                <span class="switch-field__label" id="availability-store-prefix">Availability in store</span>
+                <button class="availability-store-filter__trigger switch-field__label" id="open-store-modal" type="button">Enter postcode</button>
+              </p>
+
+              <label class="switch-field availability-store-filter__switch-field" id="store-availability-toggle-wrap" hidden>
+                <input id="store-availability-toggle" type="checkbox" />
+                <span class="switch-ui" aria-hidden="true">
+                  <span class="switch-ui__thumb"></span>
+                </span>
+                <span class="sr-only">Only show products in stock at the selected store</span>
+              </label>
+            </div>
+          </section>
+
           <section class="filter-group">
             <button class="filter-group__header filter-group__header--compact" type="button" aria-expanded="false">
               <h2 class="filter-group__title">Availability</h2>
@@ -145,25 +187,25 @@
             </button>
             <div class="filter-group__body">
               <div class="filter-group__body-inner">
-                <button class="availability-stores-btn" id="open-store-modal" type="button">
+                <button class="availability-stores-btn" id="legacy-open-store-modal" type="button">
                   <img src="./pin-icon.svg" class="availability-stores-btn__icon" alt="" />
-                  <span class="availability-stores-btn__label">All stores</span>
+                  <span class="availability-stores-btn__label" id="legacy-stores-label">All stores</span>
                 </button>
                 <label class="filter-checkbox">
                   <span class="compare-toggle__box">
-                    <input type="checkbox" id="filter-instore-stock" />
+                    <input type="checkbox" id="legacy-filter-instore-stock" />
                     <span class="checkbox-ui" aria-hidden="true"></span>
                   </span>
                   <span class="filter-checkbox__label">In store stock</span>
                 </label>
                 <label class="filter-checkbox">
                   <span class="compare-toggle__box">
-                    <input type="checkbox" id="filter-available-pickup" />
+                    <input type="checkbox" id="legacy-filter-available-pickup" />
                     <span class="checkbox-ui" aria-hidden="true"></span>
                   </span>
                   <span class="filter-checkbox__label">Available for pickup</span>
                 </label>
-                <div class="store-pills" id="store-pills" hidden></div>
+                <div class="store-pills" id="legacy-store-pills" hidden></div>
               </div>
             </div>
           </section>
@@ -518,20 +560,25 @@
           </svg>
         </button>
         <h2 class="store-modal__title" id="store-modal-title">Select a store near you</h2>
-        <div class="store-modal__location-wrap">
-          <input class="store-modal__location-input" id="store-modal-location" type="text" placeholder="Enter city or zip code" autocomplete="off" />
-          <button class="store-modal__location-btn" type="button" aria-label="Use my location">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </button>
+        <div class="location-field-wrap store-modal__location-field">
+          <label class="location-field">
+            <span class="sr-only">Enter postcode, city or address</span>
+            <input id="store-modal-location" type="text" placeholder="Enter postcode, city or address" autocomplete="off" aria-autocomplete="list" aria-controls="store-modal-suggestions" aria-haspopup="listbox" />
+            <span class="location-field__actions" aria-hidden="true">
+              <span class="location-field__icon">
+                <img class="location-field__asset location-field__asset--location" src="./location-icon.svg" alt="" />
+              </span>
+            </span>
+          </label>
+          <ul class="location-suggestions store-modal__suggestions" id="store-modal-suggestions" role="listbox" aria-label="Store location suggestions" hidden></ul>
         </div>
+        <p class="store-modal__helper" id="store-modal-helper">Enter a postcode, city or address to choose a store.</p>
         <div class="store-modal__list" id="store-modal-list" hidden></div>
-        <button class="store-modal__apply" id="store-modal-apply" type="button">Apply</button>
+        <button class="store-modal__apply" id="store-modal-apply" type="button" hidden>Apply</button>
       </div>
     </div>
 
+    <script src="./scroll-behavior-logic.js"></script>
     <script src="./script.js"></script>
   </body>
 </html>

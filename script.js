@@ -213,14 +213,6 @@ const bikesProducts = [
           'https://images2.giant-bicycles.com/b_white%2Cc_pad%2Ch_2000%2Cq_80/hpzpepwq3ygdeihzsalb/MY22Fathom292_ColorATerracotta.jpg'
         ]
       },
-      {
-        key: 'blue-ashes',
-        label: 'Blue Ashes',
-        colors: ['#3177BD'],
-        images: [
-          'https://images2.giant-bicycles.com/b_white%2Cc_pad%2Ch_2000%2Cq_80/mtzopqiapg3gdp3rtplg/MY22Fathom292_ColorBBlueAshes.jpg'
-        ]
-      }
     ]
   },
   {
@@ -254,6 +246,17 @@ const bikesProducts = [
   }
 ];
 
+const PRODUCT_STORE_AVAILABILITY = {
+  'talon-2': ['nyc-velo-eastside', 'central-park-bikes', 'brooklyn-bridge-cycles'],
+  'anthem-advanced-sl-frameset': ['giant-jersey-city', 'times-square-bikes'],
+  'anthem-x-advanced-sl-1': ['wall-street-wheels', 'gogo-gone'],
+  'xtc-advanced-29-1': ['nyc-velo-eastside', 'brooklyn-bridge-cycles', 'harlem-pedals'],
+  'anthem-x-advanced-sl-2': ['chelsea-cycle-shop', 'soho-spin-bikes'],
+  'reign-advanced-pro-29-1': ['giant-jersey-city', 'wall-street-wheels', 'times-square-bikes'],
+  'fathom-29-2': ['central-park-bikes', 'gogo-gone', 'brooklyn-bridge-cycles'],
+  'trance-advanced-pro-29-1': ['harlem-pedals', 'chelsea-cycle-shop', 'soho-spin-bikes']
+};
+
 const row = document.getElementById('products-grid');
 const emptyState = document.getElementById('empty-state');
 const resultsCount = document.getElementById('results-count');
@@ -275,13 +278,23 @@ const availabilityHelper = document.getElementById('availability-helper');
 const distanceFilter = document.getElementById('distance-filter');
 const distanceRange = document.getElementById('distance-range');
 const distanceOutput = document.getElementById('distance-output');
-const sortSelect = document.getElementById('sort-select');
+const sortTrigger = document.getElementById('sort-trigger');
+const sortDropdown = document.getElementById('sort-dropdown');
+const sortValueLabel = document.getElementById('sort-value');
 const priceRangeMinInput = document.getElementById('price-range-min');
 const priceRangeMaxInput = document.getElementById('price-range-max');
 const priceMinOutput = document.getElementById('price-min-output');
 const priceMaxOutput = document.getElementById('price-max-output');
 const priceRangeFill = document.getElementById('price-range-fill');
-const filterAvailablePickup = document.getElementById('filter-available-pickup');
+const openStoreModalBtn = document.getElementById('open-store-modal');
+const storeAvailabilityPrefix = document.getElementById('availability-store-prefix');
+const storeAvailabilityToggle = document.getElementById('store-availability-toggle');
+const storeAvailabilityToggleWrap = document.getElementById('store-availability-toggle-wrap');
+const legacyOpenStoreModalBtn = document.getElementById('legacy-open-store-modal');
+const legacyStoresLabel = document.getElementById('legacy-stores-label');
+const legacyFilterInStoreStock = document.getElementById('legacy-filter-instore-stock');
+const legacyFilterAvailablePickup = document.getElementById('legacy-filter-available-pickup');
+const legacyStorePills = document.getElementById('legacy-store-pills');
 
 const AVAILABILITY_DISTANCE_MIN = 1;
 const AVAILABILITY_DISTANCE_STEP = 1;
@@ -302,16 +315,71 @@ const desktopSplitScrollQuery = window.matchMedia(DESKTOP_SPLIT_SCROLL_QUERY);
 const compareSelection = new Set();
 const transparentAwardBadgeCache = new Map();
 const productImagePreloadCache = new Map();
-let selectedStoreIds = new Set();
-let pendingStoreIds = new Set();
+let selectedStoreId = '';
+let selectedStoreLocation = '';
+let legacySelectedStoreLocation = '';
+let legacySelectedStoreIds = new Set();
+let legacyPendingStoreIds = new Set();
+let pendingFiltersStickyRefresh = false;
+const scrollBehaviorLogic = globalThis.ScrollBehaviorLogic || {};
+const shouldHandleSplitWheel = scrollBehaviorLogic.shouldHandleSplitWheel || (({
+  isDesktopSplitScrollActive,
+  ctrlKey,
+  deltaX,
+  deltaY
+}) => isDesktopSplitScrollActive && !ctrlKey && Math.abs(deltaY) > Math.abs(deltaX) && deltaY !== 0);
+const getFiltersAreaWheelPlan = scrollBehaviorLogic.getFiltersAreaWheelPlan || (({
+  isFiltersSticky,
+  canScrollFilters,
+  canScrollPage
+}) => {
+  if (!canScrollFilters && !canScrollPage) {
+    return { handled: false, mode: 'none' };
+  }
+
+  if (!isFiltersSticky) {
+    return canScrollPage ? { handled: true, mode: 'page-only' } : { handled: true, mode: 'filters-only' };
+  }
+
+  if (canScrollFilters && canScrollPage) {
+    return { handled: true, mode: 'filters-and-page' };
+  }
+
+  if (canScrollFilters) {
+    return { handled: true, mode: 'filters-only' };
+  }
+
+  return { handled: true, mode: 'page-only' };
+});
+const getProductsAreaWheelPlan = scrollBehaviorLogic.getProductsAreaWheelPlan || (({
+  deltaY,
+  canScrollFilters,
+  canScrollPage
+}) => {
+  const primary = deltaY > 0 ? 'page' : 'filters';
+  const secondary = deltaY > 0 ? 'filters' : 'page';
+  const canScrollPrimary = primary === 'page' ? canScrollPage : canScrollFilters;
+  const canScrollSecondary = secondary === 'page' ? canScrollPage : canScrollFilters;
+
+  if (!canScrollPrimary && !canScrollSecondary) {
+    return { handled: false, primary: null, secondary: null };
+  }
+
+  return {
+    handled: true,
+    primary,
+    secondary
+  };
+});
 
 const state = {
   filtersVisible: true,
   availabilityOnly: false,
+  storeAvailabilityEnabled: false,
   locationQuery: locationInput.value,
   selectedLocation: '',
   maxDistance: getAvailabilityDistanceConfig().defaultDistance,
-  sortBy: sortSelect.value,
+  sortBy: 'featured',
   priceMin: null,
   priceMax: null
 };
@@ -369,6 +437,20 @@ function updateFiltersStickyState() {
   filtersPanel.classList.toggle('filters-panel--desktop-scroll', needsScrollableStickyContent);
 }
 
+function scheduleFiltersStickyRefresh() {
+  if (pendingFiltersStickyRefresh) {
+    return;
+  }
+
+  // Any filter UI height change needs a post-layout sticky recalculation.
+  pendingFiltersStickyRefresh = true;
+  requestAnimationFrame(() => {
+    pendingFiltersStickyRefresh = false;
+    updateSplitScrollLayout();
+    updateFiltersStickyState();
+  });
+}
+
 function normalizeWheelDelta(event) {
   if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
     return event.deltaY * 16;
@@ -406,6 +488,15 @@ function canUseInternalScroll(container) {
   return container.scrollHeight - container.clientHeight > 1;
 }
 
+function getPageScrollContainer() {
+  return document.scrollingElement || document.documentElement;
+}
+
+function canUsePageScroll() {
+  const pageScrollContainer = getPageScrollContainer();
+  return pageScrollContainer.scrollHeight - pageScrollContainer.clientHeight > 1;
+}
+
 function scrollPageBy(deltaY) {
   if (deltaY === 0) {
     return;
@@ -431,11 +522,12 @@ function distributeScrollDelta(primaryContainer, secondaryContainer, deltaY) {
 }
 
 function handleHybridWheel(primaryContainer, secondaryContainer, event) {
-  if (!isDesktopSplitScrollActive() || event.ctrlKey) {
-    return;
-  }
-
-  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.deltaY === 0) {
+  if (!shouldHandleSplitWheel({
+    isDesktopSplitScrollActive: isDesktopSplitScrollActive(),
+    ctrlKey: event.ctrlKey,
+    deltaX: event.deltaX,
+    deltaY: event.deltaY
+  })) {
     return;
   }
 
@@ -447,12 +539,84 @@ function handleHybridWheel(primaryContainer, secondaryContainer, event) {
   distributeScrollDelta(primaryContainer, secondaryContainer, normalizeWheelDelta(event));
 }
 
+function handleFiltersAreaWheel(event) {
+  if (!shouldHandleSplitWheel({
+    isDesktopSplitScrollActive: isDesktopSplitScrollActive(),
+    ctrlKey: event.ctrlKey,
+    deltaX: event.deltaX,
+    deltaY: event.deltaY
+  })) {
+    return;
+  }
+
+  const deltaY = normalizeWheelDelta(event);
+  const canScrollFilters = canUseInternalScroll(filtersPanelGroups);
+  const canScrollPageNow = canUsePageScroll();
+  const isFiltersSticky = filtersPanel?.classList.contains('filters-panel--desktop-sticky');
+  const plan = getFiltersAreaWheelPlan({
+    isFiltersSticky,
+    canScrollFilters,
+    canScrollPage: canScrollPageNow
+  });
+
+  if (!plan.handled) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (plan.mode === 'page-only') {
+    scrollPageBy(deltaY);
+    return;
+  }
+
+  if (plan.mode === 'filters-only') {
+    scrollContainerBy(filtersPanelGroups, deltaY);
+    return;
+  }
+
+  if (plan.mode === 'filters-and-page') {
+    scrollContainerBy(filtersPanelGroups, deltaY);
+    scrollPageBy(deltaY);
+  }
+}
+
+function handleProductsAreaWheel(event) {
+  if (!shouldHandleSplitWheel({
+    isDesktopSplitScrollActive: isDesktopSplitScrollActive(),
+    ctrlKey: event.ctrlKey,
+    deltaX: event.deltaX,
+    deltaY: event.deltaY
+  })) {
+    return;
+  }
+
+  const pageScrollContainer = getPageScrollContainer();
+  const plan = getProductsAreaWheelPlan({
+    deltaY: event.deltaY,
+    canScrollFilters: canUseInternalScroll(filtersPanelGroups),
+    canScrollPage: canUsePageScroll()
+  });
+
+  if (!plan.handled) {
+    return;
+  }
+
+  // Product-side scrolling uses a handoff model: page first downward, filters first upward.
+  event.preventDefault();
+  distributeScrollDelta(
+    plan.primary === 'page' ? pageScrollContainer : filtersPanelGroups,
+    plan.secondary === 'page' ? pageScrollContainer : filtersPanelGroups,
+    normalizeWheelDelta(event)
+  );
+}
+
 function initializeHybridScroll() {
   if (filtersPanelGroups) {
     filtersPanelGroups.addEventListener(
       'wheel',
       (event) => {
-        handleHybridWheel(filtersPanelGroups, null, event);
+        handleFiltersAreaWheel(event);
       },
       { passive: false }
     );
@@ -462,7 +626,7 @@ function initializeHybridScroll() {
     productsArea.addEventListener(
       'wheel',
       (event) => {
-        handleHybridWheel(productsArea, null, event);
+        handleProductsAreaWheel(event);
       },
       { passive: false }
     );
@@ -604,14 +768,14 @@ function getActiveFiltersCount() {
   const checkedInputs = filtersPanel.querySelectorAll('input[type="checkbox"]:checked');
 
   checkedInputs.forEach((input) => {
-    if (input === filterAvailablePickup && selectedStoreIds.size > 0) {
+    if (input === legacyFilterAvailablePickup && legacySelectedStoreIds.size > 0) {
       return;
     }
 
     count += 1;
   });
 
-  if (selectedStoreIds.size > 0) {
+  if (legacySelectedStoreIds.size > 0) {
     count += 1;
   }
 
@@ -647,6 +811,7 @@ function clearAllFilters() {
   });
 
   state.availabilityOnly = false;
+  state.storeAvailabilityEnabled = false;
   state.locationQuery = '';
   state.selectedLocation = '';
   state.priceMin = null;
@@ -658,11 +823,21 @@ function clearAllFilters() {
   activeSuggestionIndex = -1;
   initializeAvailabilityDistance();
 
-  selectedStoreIds.clear();
-  pendingStoreIds.clear();
+  selectedStoreId = '';
+  selectedStoreLocation = '';
+  legacySelectedStoreLocation = '';
+  legacySelectedStoreIds = new Set();
+  legacyPendingStoreIds = new Set();
+  storeModalSelectedLocation = '';
+  activeStoreModalSuggestionIndex = -1;
 
   if (storeModalLocation) {
     storeModalLocation.value = '';
+  }
+
+  if (storeModalSuggestions) {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
   }
 
   if (storeModalList) {
@@ -670,8 +845,13 @@ function clearAllFilters() {
     storeModalList.innerHTML = '';
   }
 
-  renderStorePills();
-  updateStoresLabel();
+  if (storeModalHelper) {
+    storeModalHelper.textContent = 'Enter a postcode, city or address to choose a store.';
+  }
+
+  renderLegacyStorePills();
+  updateLegacyStoresLabel();
+  syncStoreAvailabilityUi();
   syncPriceRangeUi();
   syncFilterUi();
   renderCatalog();
@@ -740,6 +920,10 @@ function hasAvailabilityLocation() {
 
 function isAvailabilityFilterActive() {
   return state.availabilityOnly && hasAvailabilityLocation();
+}
+
+function isStoreAvailabilityFilterActive() {
+  return state.storeAvailabilityEnabled && selectedStoreId.length > 0;
 }
 
 function initializeAvailabilityDistance() {
@@ -1004,11 +1188,42 @@ function createCard(product) {
   return article;
 }
 
+function createFallbackCard(product) {
+  const article = document.createElement('article');
+  article.className = 'product-card';
+  article.dataset.productId = product.id;
+  article.setAttribute('aria-label', `${product.title} product tile`);
+
+  article.innerHTML = `
+    <div class="product-card__copy">
+      <a class="product-card__text-link" href="${product.url}" aria-label="Read more about ${product.title}">
+        <div class="title-group">
+          <h2 class="product-title">${product.title}</h2>
+          <p class="product-description">${product.description}</p>
+        </div>
+      </a>
+      <div class="product-card__pricing">
+        ${renderPriceMarkup(product.price)}
+        ${renderSecondaryMarkup(product)}
+      </div>
+    </div>
+  `;
+
+  return article;
+}
+
 function getFilteredProducts() {
   let products = [...bikesProducts];
 
   if (isAvailabilityFilterActive()) {
     products = products.filter((product) => product.availabilityMiles <= state.maxDistance);
+  }
+
+  if (isStoreAvailabilityFilterActive()) {
+    products = products.filter((product) => {
+      const availableStoreIds = PRODUCT_STORE_AVAILABILITY[product.id] || [];
+      return availableStoreIds.includes(selectedStoreId);
+    });
   }
 
   if (state.priceMin !== null || state.priceMax !== null) {
@@ -1156,7 +1371,7 @@ function syncFilterUi() {
   searchContent.classList.toggle('search-page__content--filters-hidden', filtersAreHidden);
   filtersPanel.setAttribute('aria-hidden', String(filtersAreHidden));
   filtersPanel.inert = filtersAreHidden;
-  updateFiltersStickyState();
+  scheduleFiltersStickyRefresh();
   syncActiveFiltersUi();
 }
 
@@ -1170,24 +1385,58 @@ function renderCatalog() {
     }
   });
 
-  warmProductTileImages(visibleProducts);
+  try {
+    warmProductTileImages(visibleProducts);
+  } catch (error) {
+    console.error('Failed to preload product tile images.', error);
+  }
+
   row.innerHTML = '';
+  let renderedProductsCount = 0;
+
   visibleProducts.forEach((product) => {
-    row.appendChild(createCard(product));
+    try {
+      row.appendChild(createCard(product));
+    } catch (error) {
+      console.error(`Failed to render product card for "${product.id}". Falling back to simplified card.`, error);
+      row.appendChild(createFallbackCard(product));
+    }
+
+    renderedProductsCount += 1;
   });
 
-  resultsCount.textContent = String(visibleProducts.length);
-  if (emptyState) emptyState.hidden = visibleProducts.length > 0;
-  row.hidden = visibleProducts.length === 0;
+  resultsCount.textContent = String(renderedProductsCount);
+  if (emptyState) emptyState.hidden = renderedProductsCount > 0;
+  row.hidden = renderedProductsCount === 0;
 
-  hydrateAwardBadges();
-  updateCompareAvailability();
-  updateTooltipEdgeAlignment();
+  try {
+    hydrateAwardBadges();
+  } catch (error) {
+    console.error('Failed to hydrate award badges.', error);
+  }
+
+  try {
+    updateCompareAvailability();
+  } catch (error) {
+    console.error('Failed to update compare availability.', error);
+  }
+
+  try {
+    updateTooltipEdgeAlignment();
+  } catch (error) {
+    console.error('Failed to update tooltip alignment.', error);
+  }
 }
 
 availabilityToggle.addEventListener('change', () => {
   state.availabilityOnly = availabilityToggle.checked;
   syncFilterUi();
+  renderCatalog();
+});
+
+storeAvailabilityToggle.addEventListener('change', () => {
+  state.storeAvailabilityEnabled = storeAvailabilityToggle.checked && selectedStoreId.length > 0;
+  syncStoreAvailabilityUi();
   renderCatalog();
 });
 
@@ -1394,9 +1643,52 @@ priceRangeMaxInput.addEventListener('input', () => {
   renderCatalog();
 });
 
-sortSelect.addEventListener('change', () => {
-  state.sortBy = sortSelect.value;
+const SORT_LABELS = {
+  featured: 'Featured',
+  'price-low': 'Price: low to high',
+  'price-high': 'Price: high to low',
+};
+
+function openSortDropdown() {
+  sortDropdown.hidden = false;
+  sortTrigger.setAttribute('aria-expanded', 'true');
+}
+
+function closeSortDropdown() {
+  sortDropdown.hidden = true;
+  sortTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function selectSortOption(value) {
+  if (!SORT_LABELS[value]) return;
+  state.sortBy = value;
+  sortValueLabel.textContent = SORT_LABELS[value];
+  sortDropdown.querySelectorAll('.sort-dropdown__item').forEach((item) => {
+    item.setAttribute('aria-selected', String(item.dataset.value === value));
+  });
+  closeSortDropdown();
   renderCatalog();
+}
+
+sortTrigger.addEventListener('click', () => {
+  if (sortDropdown.hidden) {
+    openSortDropdown();
+  } else {
+    closeSortDropdown();
+  }
+});
+
+sortDropdown.addEventListener('mousedown', (event) => {
+  const item = event.target.closest('.sort-dropdown__item');
+  if (!item) return;
+  event.preventDefault();
+  selectSortOption(item.dataset.value);
+});
+
+document.addEventListener('click', (event) => {
+  if (!sortDropdown.hidden && !event.target.closest('#sort-control')) {
+    closeSortDropdown();
+  }
 });
 
 filtersPanel.addEventListener('change', (event) => {
@@ -1532,6 +1824,8 @@ function setFilterGroupOpenState(section, isOpen) {
   if (symbol) {
     symbol.textContent = isOpen ? '−' : '+';
   }
+
+  scheduleFiltersStickyRefresh();
 }
 
 function initializeFilterGroups() {
@@ -1539,12 +1833,6 @@ function initializeFilterGroups() {
     setFilterGroupOpenState(section, false);
   });
 }
-
-syncFilterUi();
-syncPriceRangeUi();
-renderCatalog();
-initializeFilterGroups();
-initializeHybridScroll();
 
 // ─── Filter group collapse/expand ─────────────────────────────────────────
 
@@ -1561,108 +1849,384 @@ document.getElementById('filters-panel').addEventListener('click', (event) => {
 // ─── Store selection modal ────────────────────────────────────────────────
 
 const STORES = [
-  { id: 'gogo-gone', name: 'GoGo Gone', distance: '0.8 miles' },
-  { id: 'nyc-velo-eastside', name: 'NYC Velo Eastside', distance: '1.3 miles' },
-  { id: 'giant-jersey-city', name: 'Giant Jersy City - Grove Street Bicycles', distance: '2.2 miles' },
-  { id: 'central-park-bikes', name: 'Central Park Bikes', distance: '2.3 miles' },
-  { id: 'brooklyn-bridge-cycles', name: 'Brooklyn Bridge Cycles', distance: '2.6 miles' },
-  { id: 'times-square-bikes', name: 'Times Square Bikes', distance: '2.7 miles' },
-  { id: 'wall-street-wheels', name: 'Wall Street Wheels', distance: '3.0 miles' },
-  { id: 'harlem-pedals', name: 'Harlem Pedals', distance: '3.2 miles' },
-  { id: 'chelsea-cycle-shop', name: 'Chelsea Cycle Shop', distance: '3.2 miles' },
-  { id: 'soho-spin-bikes', name: 'SoHo Spin Bikes', distance: '3.7 miles' },
+  { id: 'gogo-gone', name: 'GoGo Gone', location: 'Hoboken, NJ', distance: '0.8 miles' },
+  { id: 'nyc-velo-eastside', name: 'NYC Velo Eastside', location: 'New York, NY', distance: '1.3 miles' },
+  { id: 'giant-jersey-city', name: 'Giant Jersey City - Grove Street Bicycles', location: 'Jersey City, NJ', distance: '2.2 miles' },
+  { id: 'central-park-bikes', name: 'Central Park Bikes', location: 'New York, NY', distance: '2.3 miles' },
+  { id: 'brooklyn-bridge-cycles', name: 'Brooklyn Bridge Cycles', location: 'Brooklyn, NY', distance: '2.6 miles' },
+  { id: 'times-square-bikes', name: 'Times Square Bikes', location: 'New York, NY', distance: '2.7 miles' },
+  { id: 'wall-street-wheels', name: 'Wall Street Wheels', location: 'New York, NY', distance: '3.0 miles' },
+  { id: 'harlem-pedals', name: 'Harlem Pedals', location: 'New York, NY', distance: '3.2 miles' },
+  { id: 'chelsea-cycle-shop', name: 'Chelsea Cycle Shop', location: 'New York, NY', distance: '3.2 miles' },
+  { id: 'soho-spin-bikes', name: 'SoHo Spin Bikes', location: 'New York, NY', distance: '3.7 miles' }
 ];
 
 const storeModalOverlay = document.getElementById('store-modal-overlay');
 const storeModalClose = document.getElementById('store-modal-close');
 const storeModalLocation = document.getElementById('store-modal-location');
+const storeModalSuggestions = document.getElementById('store-modal-suggestions');
+const storeModalHelper = document.getElementById('store-modal-helper');
 const storeModalList = document.getElementById('store-modal-list');
 const storeModalApply = document.getElementById('store-modal-apply');
-const openStoreModalBtn = document.getElementById('open-store-modal');
-const storePills = document.getElementById('store-pills');
-const storesLabel = document.querySelector('.availability-stores-btn__label');
+let activeStoreModalSuggestionIndex = -1;
+let storeModalSelectedLocation = '';
+let storeModalMode = 'single';
 
-function openStoreModal() {
-  pendingStoreIds = new Set(selectedStoreIds);
+function getStoreById(storeId) {
+  return STORES.find((store) => store.id === storeId) || null;
+}
+
+function getSelectedStore() {
+  return getStoreById(selectedStoreId);
+}
+
+function getStoresForLocation(locationLabel) {
+  return STORES.filter((store) => store.location === locationLabel);
+}
+
+function syncStoreAvailabilityUi() {
+  const selectedStore = getSelectedStore();
+  const hasSelectedStore = Boolean(selectedStore);
+
+  if (!hasSelectedStore) {
+    state.storeAvailabilityEnabled = false;
+  }
+
+  storeAvailabilityPrefix.textContent = hasSelectedStore ? 'Availability in' : 'Availability in store';
+  openStoreModalBtn.textContent = hasSelectedStore ? selectedStore.name : 'Enter postcode';
+  storeAvailabilityToggleWrap.hidden = !hasSelectedStore;
+  storeAvailabilityToggle.checked = hasSelectedStore && state.storeAvailabilityEnabled;
+
+  if (hasSelectedStore) {
+    storeAvailabilityToggle.setAttribute('aria-label', `Only show products in stock at ${selectedStore.name}`);
+  } else {
+    storeAvailabilityToggle.removeAttribute('aria-label');
+  }
+
+  scheduleFiltersStickyRefresh();
+  syncActiveFiltersUi();
+}
+
+function setStoreModalHelperText(message) {
+  if (!storeModalHelper) {
+    return;
+  }
+
+  storeModalHelper.textContent = message;
+}
+
+function updateLegacyStoresLabel() {
+  if (!legacyStoresLabel) {
+    return;
+  }
+
+  const count = legacySelectedStoreIds.size;
+  legacyStoresLabel.textContent = count === 0 ? 'All stores' : `${count} store${count > 1 ? 's' : ''} selected`;
+}
+
+function renderLegacyStorePills() {
+  if (!legacyStorePills) {
+    return;
+  }
+
+  if (legacySelectedStoreIds.size === 0) {
+    legacyStorePills.hidden = true;
+    scheduleFiltersStickyRefresh();
+    syncActiveFiltersUi();
+    return;
+  }
+
+  legacyStorePills.hidden = false;
+  legacyStorePills.innerHTML = Array.from(legacySelectedStoreIds).map((storeId) => {
+    const store = getStoreById(storeId);
+    if (!store) {
+      return '';
+    }
+
+    return `<span class="store-pill"><span>${store.name}</span><button class="store-pill__remove" type="button" data-store-id="${storeId}" aria-label="Remove ${store.name}">&times;</button></span>`;
+  }).join('');
+
+  legacyStorePills.querySelectorAll('.store-pill__remove').forEach((button) => {
+    button.addEventListener('click', () => {
+      legacySelectedStoreIds.delete(button.dataset.storeId);
+      renderLegacyStorePills();
+      updateLegacyStoresLabel();
+    });
+  });
+
+  scheduleFiltersStickyRefresh();
+  syncActiveFiltersUi();
+}
+
+function openStoreModal(mode = 'single') {
+  storeModalMode = mode;
+
+  if (storeModalMode === 'legacy') {
+    storeModalSelectedLocation = legacySelectedStoreLocation;
+    storeModalLocation.value = legacySelectedStoreLocation;
+    legacyPendingStoreIds = new Set(legacySelectedStoreIds);
+  } else {
+    storeModalSelectedLocation = selectedStoreLocation;
+    storeModalLocation.value = selectedStoreLocation;
+  }
+
+  if (storeModalApply) {
+    storeModalApply.hidden = storeModalMode !== 'legacy';
+  }
+
   storeModalOverlay.hidden = false;
   document.body.style.overflow = 'hidden';
   storeModalLocation.focus();
-  renderModalList();
+  renderStoreModalSuggestions();
+  renderStoreModalList();
 }
 
 function closeStoreModal() {
   storeModalOverlay.hidden = true;
   document.body.style.overflow = '';
-}
+  storeModalSuggestions.hidden = true;
+  storeModalSuggestions.innerHTML = '';
+  storeModalLocation.removeAttribute('aria-activedescendant');
+  activeStoreModalSuggestionIndex = -1;
 
-function renderModalList() {
-  const hasLocation = storeModalLocation.value.trim().length > 0;
-  storeModalList.hidden = !hasLocation;
-  if (!hasLocation) return;
-
-  storeModalList.innerHTML = STORES.map((store) => `
-    <label class="store-modal__item">
-      <span class="compare-toggle__box">
-        <input class="store-modal__item-checkbox" type="checkbox" value="${store.id}" ${pendingStoreIds.has(store.id) ? 'checked' : ''} />
-        <span class="checkbox-ui" aria-hidden="true"></span>
-      </span>
-      <span class="store-modal__item-name">${store.name}</span>
-      <span class="store-modal__item-distance">${store.distance}</span>
-    </label>
-  `).join('');
-
-  storeModalList.querySelectorAll('.store-modal__item-checkbox').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      if (cb.checked) pendingStoreIds.add(cb.value);
-      else pendingStoreIds.delete(cb.value);
-    });
-  });
-}
-
-function applyStoreSelection() {
-  selectedStoreIds = new Set(pendingStoreIds);
-  if (selectedStoreIds.size > 0 && filterAvailablePickup) {
-    filterAvailablePickup.checked = true;
+  if (storeModalApply) {
+    storeModalApply.hidden = true;
   }
-  renderStorePills();
-  updateStoresLabel();
-  closeStoreModal();
 }
 
-function renderStorePills() {
-  if (selectedStoreIds.size === 0) {
-    storePills.hidden = true;
-    syncActiveFiltersUi();
+function updateStoreModalActiveSuggestion(index) {
+  const items = storeModalSuggestions.querySelectorAll('.location-suggestions__item');
+
+  items.forEach((item, itemIndex) => {
+    item.classList.toggle('location-suggestions__item--active', itemIndex === index);
+    item.setAttribute('aria-selected', String(itemIndex === index));
+  });
+
+  if (index >= 0 && items[index]) {
+    storeModalLocation.setAttribute('aria-activedescendant', items[index].id);
     return;
   }
-  storePills.hidden = false;
-  storePills.innerHTML = Array.from(selectedStoreIds).map((id) => {
-    const store = STORES.find((s) => s.id === id);
-    if (!store) return '';
-    return `<span class="store-pill"><span>${store.name}</span><button class="store-pill__remove" type="button" data-store-id="${id}" aria-label="Remove ${store.name}">&times;</button></span>`;
-  }).join('');
 
-  storePills.querySelectorAll('.store-pill__remove').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectedStoreIds.delete(btn.dataset.storeId);
-      renderStorePills();
-      updateStoresLabel();
+  storeModalLocation.removeAttribute('aria-activedescendant');
+}
+
+function selectStoreLocationSuggestion(locationLabel) {
+  if (storeModalMode === 'legacy' && storeModalSelectedLocation !== locationLabel) {
+    legacyPendingStoreIds = new Set();
+  }
+
+  storeModalSelectedLocation = locationLabel;
+  storeModalLocation.value = locationLabel;
+  storeModalSuggestions.hidden = true;
+  storeModalSuggestions.innerHTML = '';
+  storeModalLocation.removeAttribute('aria-activedescendant');
+  activeStoreModalSuggestionIndex = -1;
+  renderStoreModalList();
+}
+
+function renderStoreModalSuggestions() {
+  const matches = getMatchingSuggestions(storeModalLocation.value);
+  const selectedLocationLabel = storeModalSelectedLocation.toLowerCase();
+  const normalizedInput = storeModalLocation.value.trim().toLowerCase();
+
+  activeStoreModalSuggestionIndex = -1;
+  storeModalLocation.removeAttribute('aria-activedescendant');
+
+  if (!storeModalLocation.value.trim()) {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
+    setStoreModalHelperText('Enter a postcode, city or address to choose a store.');
+    return;
+  }
+
+  if (!matches.length) {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
+    setStoreModalHelperText('No matching locations found yet. Try another postcode or city.');
+    return;
+  }
+
+  if (storeModalSelectedLocation && normalizedInput === selectedLocationLabel) {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
+    setStoreModalHelperText(storeModalMode === 'legacy' ? 'Choose one or more stores below.' : 'Choose one store below.');
+    return;
+  }
+
+  storeModalSuggestions.innerHTML = matches.map((location, index) => `
+    <li class="location-suggestions__item" role="option" id="store-modal-suggestion-${index}" aria-selected="false">${location}</li>
+  `).join('');
+  storeModalSuggestions.hidden = false;
+  setStoreModalHelperText('Select a location from the list to see stores.');
+
+  storeModalSuggestions.querySelectorAll('.location-suggestions__item').forEach((item) => {
+    item.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      selectStoreLocationSuggestion(item.textContent);
     });
   });
-
-  syncActiveFiltersUi();
 }
 
-function updateStoresLabel() {
-  if (!storesLabel) return;
-  const n = selectedStoreIds.size;
-  storesLabel.textContent = n === 0 ? 'All stores' : `${n} store${n > 1 ? 's' : ''} selected`;
+function renderStoreModalList() {
+  if (!storeModalSelectedLocation) {
+    storeModalList.hidden = true;
+    storeModalList.innerHTML = '';
+    return;
+  }
+
+  const stores = getStoresForLocation(storeModalSelectedLocation);
+
+  if (!stores.length) {
+    storeModalList.hidden = false;
+    storeModalList.innerHTML = '<p class="store-modal__empty">No stores found for this location.</p>';
+    setStoreModalHelperText('Try another postcode or city.');
+    return;
+  }
+
+  storeModalList.hidden = false;
+  if (storeModalMode === 'legacy') {
+    storeModalList.innerHTML = stores.map((store) => `
+      <label class="store-modal__item">
+        <span class="compare-toggle__box">
+          <input class="store-modal__item-checkbox" type="checkbox" value="${store.id}" ${legacyPendingStoreIds.has(store.id) ? 'checked' : ''} />
+          <span class="checkbox-ui" aria-hidden="true"></span>
+        </span>
+        <span class="store-modal__item-copy">
+          <span class="store-modal__item-name">${store.name}</span>
+          <span class="store-modal__item-distance">${store.distance}</span>
+        </span>
+      </label>
+    `).join('');
+    setStoreModalHelperText('Choose one or more stores below.');
+
+    storeModalList.querySelectorAll('.store-modal__item-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          legacyPendingStoreIds.add(checkbox.value);
+        } else {
+          legacyPendingStoreIds.delete(checkbox.value);
+        }
+      });
+    });
+    return;
+  }
+
+  storeModalList.innerHTML = stores.map((store) => `
+    <label class="store-modal__item">
+      <span class="store-modal__radio">
+        <input class="store-modal__item-radio" type="radio" name="store-modal-store" value="${store.id}" ${selectedStoreId === store.id ? 'checked' : ''} />
+        <span class="store-modal__radio-ui" aria-hidden="true"></span>
+      </span>
+      <span class="store-modal__item-copy">
+        <span class="store-modal__item-name">${store.name}</span>
+        <span class="store-modal__item-distance">${store.distance}</span>
+      </span>
+    </label>
+  `).join('');
+  setStoreModalHelperText('Choose one store below.');
+
+  storeModalList.querySelectorAll('.store-modal__item-radio').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) {
+        return;
+      }
+
+      applyStoreSelection(radio.value, storeModalSelectedLocation);
+    });
+  });
 }
 
-openStoreModalBtn.addEventListener('click', openStoreModal);
+function applyStoreSelection(storeId, locationLabel) {
+  selectedStoreId = storeId;
+  selectedStoreLocation = locationLabel;
+  state.storeAvailabilityEnabled = true;
+  syncStoreAvailabilityUi();
+  closeStoreModal();
+  renderCatalog();
+}
+
+function applyLegacyStoreSelection() {
+  legacySelectedStoreIds = new Set(legacyPendingStoreIds);
+  legacySelectedStoreLocation = storeModalSelectedLocation;
+
+  if (legacySelectedStoreIds.size > 0 && legacyFilterAvailablePickup) {
+    legacyFilterAvailablePickup.checked = true;
+  }
+
+  renderLegacyStorePills();
+  updateLegacyStoresLabel();
+  closeStoreModal();
+  renderCatalog();
+}
+
+openStoreModalBtn.addEventListener('click', () => openStoreModal('single'));
+legacyOpenStoreModalBtn?.addEventListener('click', () => openStoreModal('legacy'));
 storeModalClose.addEventListener('click', closeStoreModal);
-storeModalApply.addEventListener('click', applyStoreSelection);
-storeModalLocation.addEventListener('input', renderModalList);
+storeModalApply?.addEventListener('click', applyLegacyStoreSelection);
+storeModalLocation.addEventListener('input', () => {
+  const normalizedSelectedLocation = storeModalSelectedLocation.toLowerCase();
+
+  if (storeModalLocation.value.trim().toLowerCase() !== normalizedSelectedLocation) {
+    storeModalSelectedLocation = '';
+    if (storeModalMode === 'legacy') {
+      legacyPendingStoreIds = new Set();
+    }
+  }
+
+  renderStoreModalSuggestions();
+  renderStoreModalList();
+});
+
+storeModalLocation.addEventListener('keydown', (event) => {
+  const items = storeModalSuggestions.querySelectorAll('.location-suggestions__item');
+
+  if (event.key === 'ArrowDown' && !storeModalSuggestions.hidden) {
+    event.preventDefault();
+    activeStoreModalSuggestionIndex = Math.min(activeStoreModalSuggestionIndex + 1, items.length - 1);
+    updateStoreModalActiveSuggestion(activeStoreModalSuggestionIndex);
+    return;
+  }
+
+  if (event.key === 'ArrowUp' && !storeModalSuggestions.hidden) {
+    event.preventDefault();
+    activeStoreModalSuggestionIndex = Math.max(activeStoreModalSuggestionIndex - 1, -1);
+    updateStoreModalActiveSuggestion(activeStoreModalSuggestionIndex);
+    return;
+  }
+
+  if (event.key === 'Enter') {
+    if (!storeModalSuggestions.hidden && activeStoreModalSuggestionIndex >= 0) {
+      event.preventDefault();
+      const activeItem = items[activeStoreModalSuggestionIndex];
+      if (activeItem) {
+        selectStoreLocationSuggestion(activeItem.textContent);
+      }
+      return;
+    }
+
+    const [firstMatch] = getMatchingSuggestions(storeModalLocation.value);
+    if (firstMatch) {
+      event.preventDefault();
+      selectStoreLocationSuggestion(firstMatch);
+    }
+  }
+
+  if (event.key === 'Escape') {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
+    storeModalLocation.removeAttribute('aria-activedescendant');
+    activeStoreModalSuggestionIndex = -1;
+  }
+});
+
+storeModalLocation.addEventListener('blur', () => {
+  setTimeout(() => {
+    storeModalSuggestions.hidden = true;
+    storeModalSuggestions.innerHTML = '';
+    storeModalLocation.removeAttribute('aria-activedescendant');
+    activeStoreModalSuggestionIndex = -1;
+  }, 150);
+});
 
 storeModalOverlay.addEventListener('click', (event) => {
   if (event.target === storeModalOverlay) closeStoreModal();
@@ -1671,6 +2235,10 @@ storeModalOverlay.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !storeModalOverlay.hidden) closeStoreModal();
   if (event.key === 'Escape' && !storesRangeOverlay.hidden) closeStoresRangeModal();
+  if (event.key === 'Escape' && !sortDropdown.hidden) {
+    closeSortDropdown();
+    sortTrigger.focus();
+  }
 });
 
 // ─── Stores in range modal ────────────────────────────────────────────────
@@ -1712,3 +2280,12 @@ storesRangeClose.addEventListener('click', closeStoresRangeModal);
 storesRangeOverlay.addEventListener('click', (event) => {
   if (event.target === storesRangeOverlay) closeStoresRangeModal();
 });
+
+updateLegacyStoresLabel();
+renderLegacyStorePills();
+syncStoreAvailabilityUi();
+syncFilterUi();
+syncPriceRangeUi();
+renderCatalog();
+initializeFilterGroups();
+initializeHybridScroll();

@@ -1,0 +1,7 @@
+{
+  "name": "giant-plp",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
