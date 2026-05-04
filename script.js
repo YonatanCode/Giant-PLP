@@ -271,6 +271,7 @@ const filtersActiveSummary = document.getElementById('filters-active-summary');
 const filtersActiveCount = document.getElementById('filters-active-count');
 const clearFiltersButton = document.getElementById('clear-filters');
 const availabilityToggle = document.getElementById('availability-toggle');
+const availabilityFilterGroup = availabilityToggle?.closest('.filter-group--availability');
 const availabilityDetails = document.getElementById('availability-details');
 const locationInput = document.getElementById('location-input');
 const locationSuggestions = document.getElementById('location-suggestions');
@@ -297,7 +298,7 @@ const legacyFilterAvailablePickup = document.getElementById('legacy-filter-avail
 const legacyStorePills = document.getElementById('legacy-store-pills');
 
 const AVAILABILITY_DISTANCE_MIN = 1;
-const AVAILABILITY_DISTANCE_STEP = 1;
+const AVAILABILITY_DISTANCE_STEP = 5;
 const MAX_COMPARE_ITEMS = 3;
 const PRICE_STEP = 50;
 const _productPrices = bikesProducts.map(p => parseCurrencyAmount(p.price.amount)).filter(Boolean);
@@ -891,6 +892,33 @@ function getAvailabilityDistances(products = bikesProducts) {
     .sort((a, b) => a - b);
 }
 
+function normalizeAvailabilityDistance(value) {
+  if (!Number.isFinite(value) || value <= AVAILABILITY_DISTANCE_MIN) {
+    return AVAILABILITY_DISTANCE_MIN;
+  }
+
+  return Math.max(
+    AVAILABILITY_DISTANCE_STEP,
+    Math.ceil(value / AVAILABILITY_DISTANCE_STEP) * AVAILABILITY_DISTANCE_STEP
+  );
+}
+
+function getAvailabilityDistanceOptions(maxDistance) {
+  const normalizedMaxDistance = normalizeAvailabilityDistance(maxDistance);
+  const options = [AVAILABILITY_DISTANCE_MIN];
+
+  for (let distance = AVAILABILITY_DISTANCE_STEP; distance <= normalizedMaxDistance; distance += AVAILABILITY_DISTANCE_STEP) {
+    options.push(distance);
+  }
+
+  return options;
+}
+
+function clampAvailabilityDistance(value, options) {
+  const normalizedDistance = normalizeAvailabilityDistance(value);
+  return options.find((distance) => distance >= normalizedDistance) ?? options[options.length - 1];
+}
+
 function getAvailabilityDistanceConfig(products = bikesProducts) {
   const distances = getAvailabilityDistances(products);
 
@@ -901,12 +929,12 @@ function getAvailabilityDistanceConfig(products = bikesProducts) {
     };
   }
 
-  const defaultDistance = distances[Math.min(2, distances.length - 1)];
+  const defaultDistance = normalizeAvailabilityDistance(distances[Math.min(2, distances.length - 1)]);
   const furthestDistance = distances[distances.length - 1];
 
   return {
     defaultDistance,
-    maxDistance: Math.max(defaultDistance, Math.ceil(furthestDistance * 1.5))
+    maxDistance: Math.max(defaultDistance, normalizeAvailabilityDistance(furthestDistance * 1.5))
   };
 }
 
@@ -1330,7 +1358,11 @@ function showDisabledCompareTooltip(toggle) {
 
 function syncFilterUi() {
   const { defaultDistance, maxDistance } = getAvailabilityDistanceConfig();
-  const distanceValue = state.maxDistance > 0 ? Math.min(state.maxDistance, maxDistance) : defaultDistance;
+  const distanceOptions = getAvailabilityDistanceOptions(maxDistance);
+  const distanceValue = state.maxDistance > 0
+    ? clampAvailabilityDistance(state.maxDistance, distanceOptions)
+    : defaultDistance;
+  const distanceIndex = distanceOptions.indexOf(distanceValue);
   const distanceUnit = distanceValue === 1 ? 'mile' : 'miles';
   const distanceLabel = `${distanceValue} ${distanceUnit} away`;
   const hasLocation = hasAvailabilityLocation();
@@ -1340,11 +1372,11 @@ function syncFilterUi() {
   const shouldShowAvailabilityHelper = state.availabilityOnly && !hasLocation;
 
   state.maxDistance = distanceValue;
-  distanceRange.min = String(AVAILABILITY_DISTANCE_MIN);
-  distanceRange.max = String(maxDistance);
-  distanceRange.step = String(AVAILABILITY_DISTANCE_STEP);
-  distanceRange.value = String(distanceValue);
-  distanceRange.style.setProperty('--range-fill-percent', `${maxDistance > AVAILABILITY_DISTANCE_MIN ? (distanceValue / maxDistance) * 100 : 0}%`);
+  distanceRange.min = '0';
+  distanceRange.max = String(Math.max(distanceOptions.length - 1, 0));
+  distanceRange.step = '1';
+  distanceRange.value = String(distanceIndex);
+  distanceRange.style.setProperty('--range-fill-percent', `${distanceOptions.length > 1 ? (distanceIndex / (distanceOptions.length - 1)) * 100 : 0}%`);
   distanceOutput.value = distanceLabel;
   distanceOutput.textContent = distanceLabel;
   availabilityDetails.hidden = !state.availabilityOnly;
@@ -1355,6 +1387,9 @@ function syncFilterUi() {
   distanceFilter.hidden = !shouldShowDistanceFilter;
   distanceRange.disabled = !shouldShowDistanceFilter;
   locationInput.disabled = !state.availabilityOnly;
+  if (availabilityFilterGroup) {
+    setFilterGroupOpenState(availabilityFilterGroup, state.availabilityOnly);
+  }
   if (shouldShowAvailabilityHelper) {
     locationInput.setAttribute('aria-describedby', 'availability-helper');
   } else {
@@ -1431,6 +1466,14 @@ function renderCatalog() {
 availabilityToggle.addEventListener('change', () => {
   state.availabilityOnly = availabilityToggle.checked;
   syncFilterUi();
+  if (state.availabilityOnly) {
+    requestAnimationFrame(() => {
+      locationInput.focus();
+      if (locationInput.value) {
+        locationInput.select();
+      }
+    });
+  }
   renderCatalog();
 });
 
@@ -1587,7 +1630,11 @@ locationInput.addEventListener('blur', () => {
 });
 
 distanceRange.addEventListener('input', () => {
-  state.maxDistance = Number(distanceRange.value);
+  const { maxDistance } = getAvailabilityDistanceConfig();
+  const distanceOptions = getAvailabilityDistanceOptions(maxDistance);
+  const distanceIndex = Math.max(0, Math.min(Number(distanceRange.value), distanceOptions.length - 1));
+
+  state.maxDistance = distanceOptions[distanceIndex] ?? AVAILABILITY_DISTANCE_MIN;
   syncFilterUi();
   renderCatalog();
 });
@@ -1819,7 +1866,9 @@ function setFilterGroupOpenState(section, isOpen) {
   const symbol = header?.querySelector('.filter-group__symbol');
 
   section.classList.toggle('filter-group--open', isOpen);
-  header?.setAttribute('aria-expanded', String(isOpen));
+  if (header instanceof HTMLButtonElement) {
+    header.setAttribute('aria-expanded', String(isOpen));
+  }
 
   if (symbol) {
     symbol.textContent = isOpen ? '−' : '+';
@@ -1830,14 +1879,14 @@ function setFilterGroupOpenState(section, isOpen) {
 
 function initializeFilterGroups() {
   filtersPanel.querySelectorAll('.filter-group').forEach((section) => {
-    setFilterGroupOpenState(section, false);
+    setFilterGroupOpenState(section, section === availabilityFilterGroup ? state.availabilityOnly : false);
   });
 }
 
 // ─── Filter group collapse/expand ─────────────────────────────────────────
 
 document.getElementById('filters-panel').addEventListener('click', (event) => {
-  const header = event.target.closest('.filter-group__header');
+  const header = event.target.closest('button.filter-group__header');
   if (!header) return;
 
   const section = header.closest('.filter-group');

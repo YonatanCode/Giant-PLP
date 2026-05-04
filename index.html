@@ -117,21 +117,18 @@
           <div class="filters-panel__groups">
 
           <!-- Availability: near me (toggle + distance) -->
-          <section class="filter-group">
-            <button class="filter-group__header filter-group__header--compact" type="button" aria-expanded="false">
-              <h2 class="filter-group__title">Availability</h2>
-              <span class="filter-group__symbol" aria-hidden="true">+</span>
-            </button>
-            <div class="filter-group__body">
+          <section class="filter-group filter-group--availability">
+            <label class="filter-group__header filter-group__header--compact filter-group__header--toggle" for="availability-toggle">
+              <span class="filter-group__title" role="heading" aria-level="2">Available near me</span>
+              <span class="switch-field filter-group__switch-field">
+                <input id="availability-toggle" type="checkbox" aria-controls="availability-filter-body" />
+                <span class="switch-ui" aria-hidden="true">
+                  <span class="switch-ui__thumb"></span>
+                </span>
+              </span>
+            </label>
+            <div class="filter-group__body" id="availability-filter-body">
               <div class="filter-group__body-inner">
-                <label class="switch-field">
-                  <input id="availability-toggle" type="checkbox" />
-                  <span class="switch-ui" aria-hidden="true">
-                    <span class="switch-ui__thumb"></span>
-                  </span>
-                  <span class="switch-field__label">Available near me</span>
-                </label>
-
                 <div class="availability-details" id="availability-details" hidden>
                   <div class="location-field-wrap">
                     <label class="location-field">
@@ -153,9 +150,9 @@
                   <div class="distance-filter" id="distance-filter" hidden>
                     <div class="distance-filter__row">
                       <label class="distance-filter__label" for="distance-range">Distance</label>
-                      <output class="distance-filter__value" id="distance-output" for="distance-range">100 miles away</output>
+                      <output class="distance-filter__value" id="distance-output" for="distance-range">1 mile away</output>
                     </div>
-                    <input id="distance-range" type="range" min="10" max="100" step="5" value="100" />
+                    <input id="distance-range" type="range" min="0" max="0" step="1" value="0" />
                     <button class="distance-filter__stores-link" id="show-stores-in-range" type="button">Show stores in range</button>
                   </div>
                 </div>
